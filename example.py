@@ -1,92 +1,76 @@
 #!/usr/bin/env python
 
 from cassandra.cluster import Cluster
-cluster = Cluster(['127.0.0.1'])
 
+cluster = Cluster(['127.0.0.1'])
 session = cluster.connect()
+session.execute('USE users')
+
+INSERT_USERS = session.prepare("""
+    INSERT INTO users (
+        name,
+        age,
+        email)
+    VALUES (?,?,?)
+    """)
+
+SELECT_USERS = session.prepare("""
+    SELECT
+        name,
+        age,
+        email
+    FROM users
+    """)
+
+SELECT_USER_BY_NAME = session.prepare("""
+    SELECT
+        name,
+        age,
+        email
+    FROM users
+    WHERE name = ?
+    """)
+
 
 def create_user(name, age, email):
-    """Creates new users in the users table"""
-    cql = session.prepare(
-        """
-        INSERT INTO users (
-            name,
-            age,
-            email
-        )
-        VALUES (?, ?, ?)
-        """)
-    session.execute(cql, [name, age, email])
+    """Insert a user into the users table"""
+    session.execute(INSERT_USERS, [name, age, email])
+
+
+def get_users():
+    """Select all users from the users table"""
+    return session.execute(SELECT_USERS)
+
+
+def get_user_by_name(name):
+    """Select one user by name"""
+    return session.execute(SELECT_USER_BY_NAME, [name])[0]
 
 
 if __name__ == '__main__':
-    try:
-        session.execute("""CREATE KEYSPACE users
-                    WITH REPLICATION = {'class': 'SimpleStrategy',
-                                        'replication_factor': 1}""")
-    except:
-        print "keyspace already exists"
-
     session.execute("""CREATE KEYSPACE IF NOT EXISTS users
                 WITH REPLICATION = {'class': 'SimpleStrategy',
                                     'replication_factor': 1}""")
-
-    session.execute('USE users')
-
-    session.set_keyspace('users')
 
     session.execute("""CREATE TABLE IF NOT EXISTS users (name text PRIMARY KEY,
                                                     age int,
                                                     email text)""")
 
-#    session.execute("""INSERT INTO users (name, age, email) VALUES ('Aliya', 2, 'aliya@gmail.com')""")
-
     create_user('Bejan', 22, 'bj@gmail.com')
+    create_user("Giddu", 40, 'Lud@gmail.com')
+    create_user("Naila", 7, 'naila@gmail.com')
+    create_user("Hena", 37, 'hena@gmail.com')
 
-    rows = session.execute('SELECT name, age, email FROM users')
-    print rows
-    for user_row in rows:
-        print user_row.name, user_row.age, user_row.email
+    users = get_users()
+    for user in users:
+        print user.name, user.age, user.email
 
-#    for row in rows:
-#       print row[0], row[1], row[2]
+    aliya = get_user_by_name('Aliya')
+    print aliya.name, aliya.age, aliya.email
 
-    session.execute(
-        """
-        INSERT INTO users (
-            name,
-            age,
-            email
-        )
-        VALUES (%s, %s, %s)
-        """, ("Naila", 7, 'naila@gmail.com'))
-
-    session.execute(
-        """
-        INSERT INTO users (
-            name,
-            age,
-            email
-        )
-        VALUES (%s, %s, %s)
-        """, ("Hena", 37, 'hena@gmail.com'))
-
-#    session.execute("""INSERT INTO users (name, age, email)
-#                   VALUES (%(name)s, %(age)s, %(email)s)""",
-#                   {'name': "Amiya", 'age':  46, 'email': 'amiya@gmail.com'})
-
-#   for (name, age, email) in rows:
-#       print name, age, email
-
-    user_lookup_statement = session.prepare("SELECT * FROM users WHERE name = ?")
-    name_to_query = 'Aliya'
-    user = session.execute(user_lookup_statement, [name_to_query])
-    print user
-
-    name_to_queryX = ['Aliya', 'Naila']
+    names_to_query = ['Aliya', 'Naila']
     users = []
-    for name in name_to_queryX:
-        print name
-        user = session.execute(user_lookup_statement, ['Aliya'])
+    for name in names_to_query:
+        user = get_user_by_name(name)
         users.append(user)
-        print users
+    print users
